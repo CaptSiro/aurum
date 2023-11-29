@@ -1,3 +1,4 @@
+#include "null-guards.h"
 #include <stdlib.h>
 
 
@@ -18,14 +19,6 @@ void TYPE##_queue_push(TYPE##_queue_t *queue, ITEM item); \
 ITEM TYPE##_queue_shift(TYPE##_queue_t *queue); \
 ITEM TYPE##_queue_get(TYPE##_queue_t *queue, size_t index); \
 size_t TYPE##_queue_size(TYPE##_queue_t *queue);   \
-
-
-
-#define RELEASE(memory) \
-if (memory != NULL) { \
-    free(memory);   \
-    memory = NULL;\
-}
 
 
 
@@ -124,4 +117,5 @@ ITEM TYPE##_queue_get(TYPE##_queue_t *queue, size_t index) {      \
                                  \
 size_t TYPE##_queue_size(TYPE##_queue_t *queue) {  \
     return queue->size; \
-}   \
+}                                           \
+

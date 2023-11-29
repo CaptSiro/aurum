@@ -8,4 +8,6 @@ add_executable(aurum
         queue.h
         tokenizer.c
         types.h
-        array.h)
+        array.h
+        null-guards.h
+        types.c)
