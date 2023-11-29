@@ -1,0 +1,3 @@
+C:/Users/evalo/Desktop/Desktop/c_cpp/aurum/cmake-build-debug/CMakeFiles/aurum.dir
+C:/Users/evalo/Desktop/Desktop/c_cpp/aurum/cmake-build-debug/CMakeFiles/edit_cache.dir
+C:/Users/evalo/Desktop/Desktop/c_cpp/aurum/cmake-build-debug/CMakeFiles/rebuild_cache.dir
