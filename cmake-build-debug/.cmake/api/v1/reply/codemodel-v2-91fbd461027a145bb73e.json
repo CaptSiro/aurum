@@ -39,7 +39,7 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "aurum::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-aurum-Debug-9e4fd847604b7c3daf8d.json",
+					"jsonFile" : "target-aurum-Debug-34a285a117ba99510cec.json",
 					"name" : "aurum",
 					"projectIndex" : 0
 				}
@@ -49,12 +49,12 @@
 	"kind" : "codemodel",
 	"paths" : 
 	{
-		"build" : "C:/Users/evalo/Desktop/Desktop/c_cpp/aurum/cmake-build-debug",
-		"source" : "C:/Users/evalo/Desktop/Desktop/c_cpp/aurum"
+		"build" : "C:/programming/c/aurum/cmake-build-debug",
+		"source" : "C:/programming/c/aurum"
 	},
 	"version" : 
 	{
 		"major" : 2,
-		"minor" : 5
+		"minor" : 6
 	}
 }

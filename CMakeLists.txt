@@ -10,4 +10,6 @@ add_executable(aurum
         types.h
         array.h
         null-guards.h
-        types.c)
+        types.c
+        tokenizer.c
+        tokenizer.h)
