@@ -31,7 +31,7 @@ TYPE##_queue_t *TYPE##_queue_create(int capacity){ \
     TYPE##_queue_t *queue = malloc(sizeof(TYPE##_queue_t));\
     if (queue == NULL) {\
         return NULL;\
-    }\
+    }                                       \
     \
     queue->buffer = (ITEM *)malloc(sizeof(ITEM) * capacity);\
     if (queue->buffer == NULL) {\

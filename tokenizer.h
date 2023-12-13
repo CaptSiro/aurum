@@ -52,10 +52,17 @@ typedef enum {
     TOKEN_UNKNOWN,
     TOKEN_EOF,
 } token_e;
+typedef struct {
+    int unit;
+    size_t line;
+    size_t column;
+} file_unit_t;
 
 typedef struct {
     token_e type;
     string *literal;
+    uint64 line;
+    uint64 column;
 } token_t;
 
 void token_print(token_t *token);
@@ -64,13 +71,16 @@ string *token_steal_literal(token_t *token);
 
 
 
-DYN_QUEUE(char, int)
+DYN_QUEUE(unit, file_unit_t)
 DYN_QUEUE(token, token_t *)
 
 typedef struct {
     FILE *stream;
-    char_queue_t *chars;
+    unit_queue_t *units;
     token_queue_t *queue;
+
+    uint64 line;
+    uint64 column;
 } tokenizer_t;
 
 tokenizer_t *tokenizer_create(FILE *stream);

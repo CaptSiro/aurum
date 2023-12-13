@@ -1,7 +1,7 @@
 #include "tokenizer.h"
 
 DYN_QUEUE_FN(token, token_t *, NULL)
-DYN_QUEUE_FN(char, int, EOF)
+DYN_QUEUE_FN(char, file_unit_t, (file_unit_t) {0 })
 
 
 
@@ -15,7 +15,7 @@ char *keywords[] = {
 };
 
 token_t *token_create(const token_e type) {
-    token_t *token = malloc(sizeof(token_t *));
+    token_t *token = malloc(sizeof(token_t));
     NULL_CHECKN(token)
 
     token->literal = string_create();
@@ -25,6 +25,8 @@ token_t *token_create(const token_e type) {
     }
 
     token->type = type;
+    token->column = 0;
+    token->line = 0;
 
     return token;
 }
@@ -140,12 +142,12 @@ void token_print(token_t *token) {
             break;
     }
 
-    printf(": ");
+    printf(": '");
     string_print(token->literal);
-    putchar('\n');
+    printf("' [%llu:%llu]\n", token->line, token->column);
 }
 void token_free(token_t **token) {
-    RELEASE((*token)->literal)
+    string_free((*token)->literal);
     RELEASE((*token))
 }
 string *token_steal_literal(token_t *token) {
@@ -157,7 +159,7 @@ string *token_steal_literal(token_t *token) {
 
 
 tokenizer_t *tokenizer_create(FILE *stream) {
-    tokenizer_t *tokenizer = malloc(sizeof(tokenizer_t *));
+    tokenizer_t *tokenizer = malloc(sizeof(tokenizer_t));
     NULL_CHECKN(tokenizer)
 
     tokenizer->queue = token_queue_create(4);
@@ -166,14 +168,17 @@ tokenizer_t *tokenizer_create(FILE *stream) {
         return NULL;
     }
 
-    tokenizer->chars = char_queue_create(2);
-    if (tokenizer->chars == NULL) {
+    tokenizer->units = unit_queue_create(2);
+    if (tokenizer->units == NULL) {
         token_queue_free(tokenizer->queue);
         RELEASE(tokenizer)
         return NULL;
     }
 
     tokenizer->stream = stream;
+    tokenizer->line = 0;
+    tokenizer->column = 0;
+
     return tokenizer;
 }
 void tokenizer_free(tokenizer_t **tokenizer) {
@@ -181,14 +186,15 @@ void tokenizer_free(tokenizer_t **tokenizer) {
         return;
     }
 
+    unit_queue_free((*tokenizer)->units);
+
     token_queue_t *queue = (*tokenizer)->queue;
     for (int i = 0; i < token_queue_size(queue); ++i) {
         token_t *t = token_queue_get(queue, i);
         token_free(&t);
     }
-    RELEASE((*tokenizer)->queue)
+    token_queue_free((*tokenizer)->queue);
 
-    RELEASE((*tokenizer)->chars)
     RELEASE(*tokenizer)
 }
 
@@ -211,39 +217,64 @@ void print_char(const char c) {
     printf("%c [%d]", c, c);
 }
 
-int tokenizer_load(tokenizer_t *tokenizer) {
-    int c = fgetc(tokenizer->stream);
-    char_queue_push(tokenizer->chars, c);
-    return c;
-}
-int tokenizer_shift(tokenizer_t *tokenizer) {
-    if (char_queue_size(tokenizer->chars) == 0) {
-        return fgetc(tokenizer->stream);
+file_unit_t tokenizer_read_unit(tokenizer_t *tokenizer) {
+    file_unit_t fu = { 0 };
+
+    fu.unit = fgetc(tokenizer->stream);
+    fu.column = tokenizer->column;
+    fu.line = tokenizer->line;
+
+    switch (fu.unit) {
+        case '\n': {
+            tokenizer->line++;
+            tokenizer->column = 0;
+            break;
+        }
+        case '\r': {
+            tokenizer->column = 0;
+            break;
+        }
+        case EOF: break;
+        default: {
+            tokenizer->column++;
+        }
     }
 
-    return char_queue_shift(tokenizer->chars);
+    return fu;
 }
-int tokenizer_peek(tokenizer_t *tokenizer) {
-    if (char_queue_size(tokenizer->chars) == 0) {
+file_unit_t tokenizer_load(tokenizer_t *tokenizer) {
+    file_unit_t fu = tokenizer_read_unit(tokenizer);
+    unit_queue_push(tokenizer->units, fu);
+    return fu;
+}
+file_unit_t tokenizer_shift(tokenizer_t *tokenizer) {
+    if (unit_queue_size(tokenizer->units) == 0) {
+        return tokenizer_read_unit(tokenizer);
+    }
+
+    return unit_queue_shift(tokenizer->units);
+}
+file_unit_t tokenizer_peek(tokenizer_t *tokenizer) {
+    if (unit_queue_size(tokenizer->units) == 0) {
         return tokenizer_load(tokenizer);
     }
 
-    return char_queue_get(tokenizer->chars, 0);
+    return unit_queue_get(tokenizer->units, 0);
 }
-int tokenizer_peek_at(tokenizer_t *tokenizer, size_t index) {
-    size_t size = char_queue_size(tokenizer->chars);
+file_unit_t tokenizer_peek_at(tokenizer_t *tokenizer, const size_t index) {
+    size_t size = unit_queue_size(tokenizer->units);
 
     if (index < size) {
-        return char_queue_get(tokenizer->chars, index);
+        return unit_queue_get(tokenizer->units, index);
     }
 
     for (int i = 0; i <= size - index; ++i) {
         tokenizer_load(tokenizer);
     }
 
-    return char_queue_get(tokenizer->chars, index);
+    return unit_queue_get(tokenizer->units, index);
 }
-void tokenizer_set_start(tokenizer_t *tokenizer, size_t new_index) {
+void tokenizer_chars_skip(tokenizer_t *tokenizer, const size_t new_index) {
     for (int i = 0; i < new_index; ++i) {
         tokenizer_shift(tokenizer);
     }
@@ -257,18 +288,23 @@ token_t *token_from_char(const token_e type, const char literal) {
 
     return token;
 }
-token_t *token_from_char_load(const token_e type, const char literal, tokenizer_t *tokenizer) {
+token_t *token_from_file_unit(const token_e type, const file_unit_t file_unit) {
     token_t *token = token_create(type);
     NULL_CHECKN(token)
 
-    string_push(token->literal, literal);
-    tokenizer_load(tokenizer);
+    string_push(token->literal, (char) file_unit.unit);
+    token->column = file_unit.column;
+    token->line = file_unit.line;
 
     return token;
 }
-token_t *token_from_literal(const token_e type, const char *literal) {
+#define UNPACK_FILE_UNIT(FILE_UNIT) FILE_UNIT.line, FILE_UNIT.column
+token_t *token_from_literal(const token_e type, const char *literal, uint64 line, uint64 column) {
     token_t *token = token_create(type);
     NULL_CHECKN(token)
+
+    token->line = line;
+    token->column = column;
 
     for (int i = 0; literal[i] != '\0'; ++i) {
         string_push(token->literal, literal[i]);
@@ -293,9 +329,9 @@ bool is_ident_valid(const char c) {
 }
 bool match_seq(tokenizer_t *tokenizer, const char *seq) {
     for (int i = 0; seq[i] != '\0'; ++i) {
-        int c = tokenizer_peek_at(tokenizer, i);
+        file_unit_t fu = tokenizer_peek_at(tokenizer, i);
 
-        if (c != seq[i]) {
+        if (fu.unit != seq[i]) {
             return false;
         }
     }
@@ -307,16 +343,16 @@ token_t *read_string(tokenizer_t *tokenizer) {
     token_t *token = token_create(TOKEN_STRING);
     NULL_CHECKN(token)
 
-    int current = tokenizer_shift(tokenizer);
-    while (current != EOF) {
-        if (current == '"') {
+    file_unit_t current = tokenizer_shift(tokenizer);
+    while (current.unit != EOF) {
+        if (current.unit == '"') {
             return token;
         }
 
-        if (current == '\\') {
+        if (current.unit == '\\') {
             current = tokenizer_shift(tokenizer);
 
-            switch (current) {
+            switch (current.unit) {
                 case 'n': {
                     string_push(token->literal, '\n');
                     break;
@@ -343,7 +379,7 @@ token_t *read_string(tokenizer_t *tokenizer) {
                 }
                 default: {
                     token_free(&token);
-                    return token_from_char(TOKEN_UNKNOWN, (char) current);
+                    return token_from_file_unit(TOKEN_UNKNOWN, current);
                 }
             }
 
@@ -351,33 +387,37 @@ token_t *read_string(tokenizer_t *tokenizer) {
             continue;
         }
 
-        string_push(token->literal, (char) current);
+        string_push(token->literal, (char) current.unit);
         current = tokenizer_shift(tokenizer);
     }
 
     token_free(&token);
     return token_from_char(TOKEN_EOF, '\0');
 }
-token_t *read_number(tokenizer_t *tokenizer, char first_digit) {
-    token_t *number = token_from_char(TOKEN_NUMBER, first_digit);
+token_t *read_number(tokenizer_t *tokenizer, file_unit_t first_digit) {
+    token_t *number = token_from_file_unit(TOKEN_NUMBER, first_digit);
     NULL_CHECKN(number)
 
     bool has_not_loaded_decimal_dot = true;
     while (true) {
-        int c = tokenizer_load(tokenizer);
+        file_unit_t fu = tokenizer_load(tokenizer);
 
-        if (is_numeric((char) c) == true) {
-            string_push(number->literal, (char) tokenizer_shift(tokenizer));
+        if (is_numeric((char) fu.unit) == true) {
+            tokenizer_chars_skip(tokenizer, 1);
+            string_push(number->literal, (char) fu.unit);
             continue;
         }
 
-        if (c == '.' && has_not_loaded_decimal_dot) {
+        if (fu.unit == '.' && has_not_loaded_decimal_dot) {
             has_not_loaded_decimal_dot = false;
 
-            int next = tokenizer_load(tokenizer);
-            if (is_numeric((char) next)) {
-                string_push(number->literal, (char) tokenizer_shift(tokenizer)); // .
-                string_push(number->literal, (char) tokenizer_shift(tokenizer)); // 0-9
+            file_unit_t next = tokenizer_load(tokenizer);
+            if (is_numeric((char) next.unit)) {
+                file_unit_t dot = tokenizer_shift(tokenizer);
+                file_unit_t digit = tokenizer_shift(tokenizer);
+
+                string_push(number->literal, (char) dot.unit);
+                string_push(number->literal, (char) digit.unit);
                 continue;
             }
         }
@@ -387,58 +427,57 @@ token_t *read_number(tokenizer_t *tokenizer, char first_digit) {
 
     return number;
 }
-token_t *read_ident(tokenizer_t *tokenizer, char current) {
-    if (!(is_alpha(current) || current == '_')) {
-        return token_from_char(TOKEN_UNKNOWN, current);
+token_t *read_ident(tokenizer_t *tokenizer, file_unit_t current) {
+    if (!(is_alpha((char) current.unit) || current.unit == '_')) {
+        return token_from_file_unit(TOKEN_UNKNOWN, current);
     }
 
-    token_t *token = token_create(TOKEN_IDENT);
+    token_t *token = token_from_file_unit(TOKEN_IDENT, current);
     NULL_CHECKN(token)
 
-    string_push(token->literal, current);
-
     while (true) {
-        int c = tokenizer_load(tokenizer);
+        file_unit_t fu = tokenizer_load(tokenizer);
 
-        if (c == EOF || !is_ident_valid((char) c)) {
+        if (fu.unit == EOF || !is_ident_valid((char) fu.unit)) {
             break;
         }
 
-        string_push(token->literal, (char) tokenizer_shift(tokenizer));
+        tokenizer_chars_skip(tokenizer, 1);
+        string_push(token->literal, (char) fu.unit);
     }
 
     return token;
 }
 token_t *read_comment_line(tokenizer_t *tokenizer) {
     while (true) {
-        int c = tokenizer_peek(tokenizer);
+        file_unit_t fu = tokenizer_peek(tokenizer);
 
-        if (c == '\n' || c == EOF) {
+        if (fu.unit == '\n' || fu.unit == EOF) {
             break;
         }
 
-        tokenizer_shift(tokenizer);
+        tokenizer_chars_skip(tokenizer, 1);
     }
 
     return read_token(tokenizer);
 }
 token_t *read_comment_block(tokenizer_t *tokenizer) {
     while (true) {
-        int c = tokenizer_peek(tokenizer);
+        file_unit_t fu = tokenizer_peek(tokenizer);
 
         if (match_seq(tokenizer, "*/") == true) {
-            tokenizer_set_start(tokenizer, 2);
+            tokenizer_chars_skip(tokenizer, 2);
 
             if (match_seq(tokenizer, "/*") == true) {
-                tokenizer_set_start(tokenizer, 2);
+                tokenizer_chars_skip(tokenizer, 2);
                 continue;
             }
 
             break;
         }
 
-        if (c == EOF) {
-            return token_from_literal(TOKEN_UNKNOWN, "/*");
+        if (fu.unit == EOF) {
+            return token_from_literal(TOKEN_UNKNOWN, "/*", UNPACK_FILE_UNIT(fu));
         }
 
         tokenizer_shift(tokenizer);
@@ -463,74 +502,75 @@ bool is_whitespace(const int c) {
 }
 void skip_whitespace(tokenizer_t *tokenizer) {
     while (true) {
-        int c = tokenizer_peek(tokenizer);
+        file_unit_t fu = tokenizer_peek(tokenizer);
 
-        if (!is_whitespace(c)) {
+        if (!is_whitespace((char) fu.unit)) {
             break;
         }
 
-        tokenizer_shift(tokenizer);
+        tokenizer_chars_skip(tokenizer, 1);
     }
 }
 
-token_t *tokenize_op_assignment(const char c, tokenizer_t *tokenizer) {
-    const char next = (char) tokenizer_shift(tokenizer);
+token_t *tokenize_op_assignment(file_unit_t operator, tokenizer_t *tokenizer) {
+    file_unit_t fu = tokenizer_shift(tokenizer);
 
-    if (next == '=') {
-        return token_from_char_load(TOKEN_OPERATOR_ASSIGN, c, tokenizer);
+    if (fu.unit == '=') {
+        return token_from_file_unit(TOKEN_OPERATOR_ASSIGN, operator);
     }
 
-    return token_from_char_load(TOKEN_OPERATOR, c, tokenizer);
+    return token_from_file_unit(TOKEN_OPERATOR, operator);
 }
 
 
 
-#define READ_NEXT char next = (char) tokenizer_peek(tokenizer);
-#define DEFAULT(TYPE, LITERAL) return token_from_literal(TYPE, LITERAL);
+#define READ_NEXT file_unit_t next = tokenizer_peek(tokenizer);
+#define DEFAULT(TYPE, LITERAL) return token_from_literal(TYPE, LITERAL, UNPACK_FILE_UNIT(next));
 #define IF_FOLLOWED_BY(CHAR, TYPE, LITERAL) \
-if (next == CHAR) {                 \
+if (next.unit == CHAR) {                 \
     tokenizer_shift(tokenizer);      \
-    return token_from_literal(TYPE, LITERAL); \
+    return token_from_literal(TYPE, LITERAL, UNPACK_FILE_UNIT(next)); \
 }
 
 
 
 token_t *read_token(tokenizer_t *tokenizer) {
     skip_whitespace(tokenizer);
-    int current = tokenizer_shift(tokenizer);
+    file_unit_t current = tokenizer_shift(tokenizer);
 
-    if (current == EOF) {
+    if (current.unit == EOF) {
         return token_create(TOKEN_EOF);
     }
 
-    switch (current) {
-        case ';': return token_from_char_load(TOKEN_SEMICOLON, ';', tokenizer);
-        case '(': return token_from_char_load(TOKEN_ROUND_BRACKET_LEFT, '(', tokenizer);
-        case ')': return token_from_char_load(TOKEN_ROUND_BRACKET_RIGHT, ')', tokenizer);
-        case '{': return token_from_char_load(TOKEN_CURLY_BRACKET_LEFT, '{', tokenizer);
-        case '}': return token_from_char_load(TOKEN_CURLY_BRACKET_RIGHT, '}', tokenizer);
-        case '[': return token_from_char_load(TOKEN_SQUARE_BRACKET_LEFT, '[', tokenizer);
-        case ']': return token_from_char_load(TOKEN_SQUARE_BRACKET_RIGHT, ']', tokenizer);
-        case ':': return token_from_char_load(TOKEN_COLON, ':', tokenizer);
-        case ',': return token_from_char_load(TOKEN_COMMA, ',', tokenizer);
-        case '?': return token_from_char_load(TOKEN_OPERATOR, '?', tokenizer);
-        case '~': return token_from_char_load(TOKEN_OPERATOR, '~', tokenizer);
+    switch (current.unit) {
+        case ';': return token_from_file_unit(TOKEN_SEMICOLON, current);
+        case '(': return token_from_file_unit(TOKEN_ROUND_BRACKET_LEFT, current);
+        case ')': return token_from_file_unit(TOKEN_ROUND_BRACKET_RIGHT, current);
+        case '{': return token_from_file_unit(TOKEN_CURLY_BRACKET_LEFT, current);
+        case '}': return token_from_file_unit(TOKEN_CURLY_BRACKET_RIGHT, current);
+        case '[': return token_from_file_unit(TOKEN_SQUARE_BRACKET_LEFT, current);
+        case ']': return token_from_file_unit(TOKEN_SQUARE_BRACKET_RIGHT, current);
+        case ':': return token_from_file_unit(TOKEN_COLON, current);
+        case ',': return token_from_file_unit(TOKEN_COMMA, current);
 
-        case '*': return tokenize_op_assignment('*', tokenizer);
-        case '%': return tokenize_op_assignment('%', tokenizer);
-        case '^': return tokenize_op_assignment('^', tokenizer);
+        case '?':
+        case '~': return token_from_file_unit(TOKEN_OPERATOR, current);
+
+        case '*':
+        case '%':
+        case '^': return tokenize_op_assignment(current, tokenizer);
 
         case '/': {
             READ_NEXT
-            IF_FOLLOWED_BY('=', TOKEN_OPERATOR_ASSIGN, "/");
+            IF_FOLLOWED_BY('=', TOKEN_OPERATOR_ASSIGN, "/")
 
-            if (next == '/') {
-                tokenizer_set_start(tokenizer, 1);
+            if (next.unit == '/') {
+                tokenizer_chars_skip(tokenizer, 1);
                 return read_comment_line(tokenizer);
             }
 
-            if (next == '*') {
-                tokenizer_set_start(tokenizer, 1);
+            if (next.unit == '*') {
+                tokenizer_chars_skip(tokenizer, 1);
                 return read_comment_block(tokenizer);
             }
 
@@ -580,11 +620,11 @@ token_t *read_token(tokenizer_t *tokenizer) {
         case '<': {
             READ_NEXT
 
-            if (next == '<') {
-                next = (char) tokenizer_shift(tokenizer);
+            if (next.unit == '<') {
+                next = tokenizer_shift(tokenizer);
 
-                if (next == '=') {
-                    return token_from_literal(TOKEN_OPERATOR_ASSIGN, "<<=");
+                if (next.unit == '=') {
+                    return token_from_literal(TOKEN_OPERATOR_ASSIGN, "<<=", UNPACK_FILE_UNIT(next));
                 }
 
                 DEFAULT(TOKEN_OPERATOR, "<<")
@@ -596,14 +636,14 @@ token_t *read_token(tokenizer_t *tokenizer) {
         case '>': {
             READ_NEXT
 
-            if (next == '>') {
-                next = (char) tokenizer_shift(tokenizer);
+            if (next.unit == '>') {
+                next = tokenizer_shift(tokenizer);
 
-                if (next == '=') {
-                    return token_from_literal(TOKEN_OPERATOR_ASSIGN, ">>=");
+                if (next.unit == '=') {
+                    return token_from_literal(TOKEN_OPERATOR_ASSIGN, ">>=", UNPACK_FILE_UNIT(next));
                 }
 
-                return token_from_literal(TOKEN_OPERATOR, ">>");
+                DEFAULT(TOKEN_OPERATOR, ">>")
             }
 
             IF_FOLLOWED_BY('=', TOKEN_OPERATOR, ">=")
@@ -611,31 +651,32 @@ token_t *read_token(tokenizer_t *tokenizer) {
         }
 
         case '\'': {
-            int c = tokenizer_shift(tokenizer);
+            file_unit_t fu = tokenizer_shift(tokenizer);
 
-            if (c == EOF) {
-                return token_from_char(TOKEN_UNKNOWN, '\0');
+            if (fu.unit == EOF) {
+                fu.unit = '\0';
+                return token_from_file_unit(TOKEN_UNKNOWN, fu);
             }
 
-            const char closing = (char) tokenizer_shift(tokenizer);
+            file_unit_t closing = tokenizer_shift(tokenizer);
 
-            if (closing != '\'') {
-                return token_from_char(TOKEN_UNKNOWN, closing);
+            if (closing.unit != '\'') {
+                return token_from_file_unit(TOKEN_UNKNOWN, closing);
             }
 
-            tokenizer_shift(tokenizer);
-            return token_from_char(TOKEN_CHAR, (char) c);
+            tokenizer_chars_skip(tokenizer, 1);
+            return token_from_file_unit(TOKEN_CHAR, fu);
         }
         case '"': {
             return read_string(tokenizer);
         }
 
         default: {
-            if (is_numeric((char) current)) {
-                return read_number(tokenizer, (char) current);
+            if (is_numeric((char) current.unit)) {
+                return read_number(tokenizer, current);
             }
 
-            token_t *ident = read_ident(tokenizer, (char) current);
+            token_t *ident = read_ident(tokenizer, current);
             NULL_CHECKN(ident)
 
             if (ident->type == TOKEN_UNKNOWN) {
