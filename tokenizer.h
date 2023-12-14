@@ -77,7 +77,7 @@ DYN_QUEUE(token, token_t *)
 typedef struct {
     FILE *stream;
     unit_queue_t *units;
-    token_queue_t *queue;
+    token_queue_t *tokens;
 
     uint64 line;
     uint64 column;
@@ -86,5 +86,8 @@ typedef struct {
 tokenizer_t *tokenizer_create(FILE *stream);
 void tokenizer_free(tokenizer_t **tokenizer);
 token_t *read_token(tokenizer_t *tokenizer);
+
+token_t *tokenizer_next(tokenizer_t *tokenizer);
+token_t *tokenizer_peek(tokenizer_t *tokenizer, size_t index);
 
 #endif

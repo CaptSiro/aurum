@@ -1,7 +1,7 @@
 #include "tokenizer.h"
 
 DYN_QUEUE_FN(token, token_t *, NULL)
-DYN_QUEUE_FN(char, file_unit_t, (file_unit_t) {0 })
+DYN_QUEUE_FN(unit, file_unit_t, (file_unit_t) { 0 })
 
 
 
@@ -162,15 +162,15 @@ tokenizer_t *tokenizer_create(FILE *stream) {
     tokenizer_t *tokenizer = malloc(sizeof(tokenizer_t));
     NULL_CHECKN(tokenizer)
 
-    tokenizer->queue = token_queue_create(4);
-    if (tokenizer->queue == NULL) {
+    tokenizer->tokens = token_queue_create(4);
+    if (tokenizer->tokens == NULL) {
         RELEASE(tokenizer)
         return NULL;
     }
 
     tokenizer->units = unit_queue_create(2);
     if (tokenizer->units == NULL) {
-        token_queue_free(tokenizer->queue);
+        token_queue_free(tokenizer->tokens);
         RELEASE(tokenizer)
         return NULL;
     }
@@ -188,12 +188,12 @@ void tokenizer_free(tokenizer_t **tokenizer) {
 
     unit_queue_free((*tokenizer)->units);
 
-    token_queue_t *queue = (*tokenizer)->queue;
+    token_queue_t *queue = (*tokenizer)->tokens;
     for (int i = 0; i < token_queue_size(queue); ++i) {
         token_t *t = token_queue_get(queue, i);
         token_free(&t);
     }
-    token_queue_free((*tokenizer)->queue);
+    token_queue_free((*tokenizer)->tokens);
 
     RELEASE(*tokenizer)
 }
@@ -242,26 +242,26 @@ file_unit_t tokenizer_read_unit(tokenizer_t *tokenizer) {
 
     return fu;
 }
-file_unit_t tokenizer_load(tokenizer_t *tokenizer) {
+file_unit_t tokenizer_units_load(tokenizer_t *tokenizer) {
     file_unit_t fu = tokenizer_read_unit(tokenizer);
     unit_queue_push(tokenizer->units, fu);
     return fu;
 }
-file_unit_t tokenizer_shift(tokenizer_t *tokenizer) {
+file_unit_t tokenizer_units_shift(tokenizer_t *tokenizer) {
     if (unit_queue_size(tokenizer->units) == 0) {
         return tokenizer_read_unit(tokenizer);
     }
 
     return unit_queue_shift(tokenizer->units);
 }
-file_unit_t tokenizer_peek(tokenizer_t *tokenizer) {
+file_unit_t tokenizer_units_peek(tokenizer_t *tokenizer) {
     if (unit_queue_size(tokenizer->units) == 0) {
-        return tokenizer_load(tokenizer);
+        return tokenizer_units_load(tokenizer);
     }
 
     return unit_queue_get(tokenizer->units, 0);
 }
-file_unit_t tokenizer_peek_at(tokenizer_t *tokenizer, const size_t index) {
+file_unit_t tokenizer_units_peek_at(tokenizer_t *tokenizer, const size_t index) {
     size_t size = unit_queue_size(tokenizer->units);
 
     if (index < size) {
@@ -269,14 +269,14 @@ file_unit_t tokenizer_peek_at(tokenizer_t *tokenizer, const size_t index) {
     }
 
     for (int i = 0; i <= size - index; ++i) {
-        tokenizer_load(tokenizer);
+        tokenizer_units_load(tokenizer);
     }
 
     return unit_queue_get(tokenizer->units, index);
 }
-void tokenizer_chars_skip(tokenizer_t *tokenizer, const size_t new_index) {
+void tokenizer_units_skip(tokenizer_t *tokenizer, const size_t new_index) {
     for (int i = 0; i < new_index; ++i) {
-        tokenizer_shift(tokenizer);
+        tokenizer_units_shift(tokenizer);
     }
 }
 
@@ -288,17 +288,17 @@ token_t *token_from_char(const token_e type, const char literal) {
 
     return token;
 }
-token_t *token_from_file_unit(const token_e type, const file_unit_t file_unit) {
+token_t *token_from_unit(const token_e type, const file_unit_t unit) {
     token_t *token = token_create(type);
     NULL_CHECKN(token)
 
-    string_push(token->literal, (char) file_unit.unit);
-    token->column = file_unit.column;
-    token->line = file_unit.line;
+    string_push(token->literal, (char) unit.unit);
+    token->column = unit.column;
+    token->line = unit.line;
 
     return token;
 }
-#define UNPACK_FILE_UNIT(FILE_UNIT) FILE_UNIT.line, FILE_UNIT.column
+#define UNPACK_UNIT(UNIT) UNIT.line, UNIT.column
 token_t *token_from_literal(const token_e type, const char *literal, uint64 line, uint64 column) {
     token_t *token = token_create(type);
     NULL_CHECKN(token)
@@ -329,7 +329,7 @@ bool is_ident_valid(const char c) {
 }
 bool match_seq(tokenizer_t *tokenizer, const char *seq) {
     for (int i = 0; seq[i] != '\0'; ++i) {
-        file_unit_t fu = tokenizer_peek_at(tokenizer, i);
+        file_unit_t fu = tokenizer_units_peek_at(tokenizer, i);
 
         if (fu.unit != seq[i]) {
             return false;
@@ -343,14 +343,14 @@ token_t *read_string(tokenizer_t *tokenizer) {
     token_t *token = token_create(TOKEN_STRING);
     NULL_CHECKN(token)
 
-    file_unit_t current = tokenizer_shift(tokenizer);
+    file_unit_t current = tokenizer_units_shift(tokenizer);
     while (current.unit != EOF) {
         if (current.unit == '"') {
             return token;
         }
 
         if (current.unit == '\\') {
-            current = tokenizer_shift(tokenizer);
+            current = tokenizer_units_shift(tokenizer);
 
             switch (current.unit) {
                 case 'n': {
@@ -379,31 +379,31 @@ token_t *read_string(tokenizer_t *tokenizer) {
                 }
                 default: {
                     token_free(&token);
-                    return token_from_file_unit(TOKEN_UNKNOWN, current);
+                    return token_from_unit(TOKEN_UNKNOWN, current);
                 }
             }
 
-            current = tokenizer_shift(tokenizer);
+            current = tokenizer_units_shift(tokenizer);
             continue;
         }
 
         string_push(token->literal, (char) current.unit);
-        current = tokenizer_shift(tokenizer);
+        current = tokenizer_units_shift(tokenizer);
     }
 
     token_free(&token);
     return token_from_char(TOKEN_EOF, '\0');
 }
 token_t *read_number(tokenizer_t *tokenizer, file_unit_t first_digit) {
-    token_t *number = token_from_file_unit(TOKEN_NUMBER, first_digit);
+    token_t *number = token_from_unit(TOKEN_NUMBER, first_digit);
     NULL_CHECKN(number)
 
     bool has_not_loaded_decimal_dot = true;
     while (true) {
-        file_unit_t fu = tokenizer_load(tokenizer);
+        file_unit_t fu = tokenizer_units_load(tokenizer);
 
         if (is_numeric((char) fu.unit) == true) {
-            tokenizer_chars_skip(tokenizer, 1);
+            tokenizer_units_skip(tokenizer, 1);
             string_push(number->literal, (char) fu.unit);
             continue;
         }
@@ -411,10 +411,10 @@ token_t *read_number(tokenizer_t *tokenizer, file_unit_t first_digit) {
         if (fu.unit == '.' && has_not_loaded_decimal_dot) {
             has_not_loaded_decimal_dot = false;
 
-            file_unit_t next = tokenizer_load(tokenizer);
+            file_unit_t next = tokenizer_units_load(tokenizer);
             if (is_numeric((char) next.unit)) {
-                file_unit_t dot = tokenizer_shift(tokenizer);
-                file_unit_t digit = tokenizer_shift(tokenizer);
+                file_unit_t dot = tokenizer_units_shift(tokenizer);
+                file_unit_t digit = tokenizer_units_shift(tokenizer);
 
                 string_push(number->literal, (char) dot.unit);
                 string_push(number->literal, (char) digit.unit);
@@ -429,20 +429,20 @@ token_t *read_number(tokenizer_t *tokenizer, file_unit_t first_digit) {
 }
 token_t *read_ident(tokenizer_t *tokenizer, file_unit_t current) {
     if (!(is_alpha((char) current.unit) || current.unit == '_')) {
-        return token_from_file_unit(TOKEN_UNKNOWN, current);
+        return token_from_unit(TOKEN_UNKNOWN, current);
     }
 
-    token_t *token = token_from_file_unit(TOKEN_IDENT, current);
+    token_t *token = token_from_unit(TOKEN_IDENT, current);
     NULL_CHECKN(token)
 
     while (true) {
-        file_unit_t fu = tokenizer_load(tokenizer);
+        file_unit_t fu = tokenizer_units_load(tokenizer);
 
         if (fu.unit == EOF || !is_ident_valid((char) fu.unit)) {
             break;
         }
 
-        tokenizer_chars_skip(tokenizer, 1);
+        tokenizer_units_skip(tokenizer, 1);
         string_push(token->literal, (char) fu.unit);
     }
 
@@ -450,26 +450,26 @@ token_t *read_ident(tokenizer_t *tokenizer, file_unit_t current) {
 }
 token_t *read_comment_line(tokenizer_t *tokenizer) {
     while (true) {
-        file_unit_t fu = tokenizer_peek(tokenizer);
+        file_unit_t fu = tokenizer_units_peek(tokenizer);
 
         if (fu.unit == '\n' || fu.unit == EOF) {
             break;
         }
 
-        tokenizer_chars_skip(tokenizer, 1);
+        tokenizer_units_skip(tokenizer, 1);
     }
 
     return read_token(tokenizer);
 }
 token_t *read_comment_block(tokenizer_t *tokenizer) {
     while (true) {
-        file_unit_t fu = tokenizer_peek(tokenizer);
+        file_unit_t fu = tokenizer_units_peek(tokenizer);
 
         if (match_seq(tokenizer, "*/") == true) {
-            tokenizer_chars_skip(tokenizer, 2);
+            tokenizer_units_skip(tokenizer, 2);
 
             if (match_seq(tokenizer, "/*") == true) {
-                tokenizer_chars_skip(tokenizer, 2);
+                tokenizer_units_skip(tokenizer, 2);
                 continue;
             }
 
@@ -477,10 +477,10 @@ token_t *read_comment_block(tokenizer_t *tokenizer) {
         }
 
         if (fu.unit == EOF) {
-            return token_from_literal(TOKEN_UNKNOWN, "/*", UNPACK_FILE_UNIT(fu));
+            return token_from_literal(TOKEN_UNKNOWN, "/*", UNPACK_UNIT(fu));
         }
 
-        tokenizer_shift(tokenizer);
+        tokenizer_units_shift(tokenizer);
     }
 
     return read_token(tokenizer);
@@ -502,59 +502,59 @@ bool is_whitespace(const int c) {
 }
 void skip_whitespace(tokenizer_t *tokenizer) {
     while (true) {
-        file_unit_t fu = tokenizer_peek(tokenizer);
+        file_unit_t fu = tokenizer_units_peek(tokenizer);
 
         if (!is_whitespace((char) fu.unit)) {
             break;
         }
 
-        tokenizer_chars_skip(tokenizer, 1);
+        tokenizer_units_skip(tokenizer, 1);
     }
 }
 
 token_t *tokenize_op_assignment(file_unit_t operator, tokenizer_t *tokenizer) {
-    file_unit_t fu = tokenizer_shift(tokenizer);
+    file_unit_t fu = tokenizer_units_shift(tokenizer);
 
     if (fu.unit == '=') {
-        return token_from_file_unit(TOKEN_OPERATOR_ASSIGN, operator);
+        return token_from_unit(TOKEN_OPERATOR_ASSIGN, operator);
     }
 
-    return token_from_file_unit(TOKEN_OPERATOR, operator);
+    return token_from_unit(TOKEN_OPERATOR, operator);
 }
 
 
 
-#define READ_NEXT file_unit_t next = tokenizer_peek(tokenizer);
-#define DEFAULT(TYPE, LITERAL) return token_from_literal(TYPE, LITERAL, UNPACK_FILE_UNIT(next));
+#define READ_NEXT file_unit_t next = tokenizer_units_peek(tokenizer);
+#define DEFAULT(TYPE, LITERAL) return token_from_literal(TYPE, LITERAL, UNPACK_UNIT(next));
 #define IF_FOLLOWED_BY(CHAR, TYPE, LITERAL) \
 if (next.unit == CHAR) {                 \
-    tokenizer_shift(tokenizer);      \
-    return token_from_literal(TYPE, LITERAL, UNPACK_FILE_UNIT(next)); \
+    tokenizer_units_shift(tokenizer);      \
+    return token_from_literal(TYPE, LITERAL, UNPACK_UNIT(next)); \
 }
 
 
 
 token_t *read_token(tokenizer_t *tokenizer) {
     skip_whitespace(tokenizer);
-    file_unit_t current = tokenizer_shift(tokenizer);
+    file_unit_t current = tokenizer_units_shift(tokenizer);
 
     if (current.unit == EOF) {
         return token_create(TOKEN_EOF);
     }
 
     switch (current.unit) {
-        case ';': return token_from_file_unit(TOKEN_SEMICOLON, current);
-        case '(': return token_from_file_unit(TOKEN_ROUND_BRACKET_LEFT, current);
-        case ')': return token_from_file_unit(TOKEN_ROUND_BRACKET_RIGHT, current);
-        case '{': return token_from_file_unit(TOKEN_CURLY_BRACKET_LEFT, current);
-        case '}': return token_from_file_unit(TOKEN_CURLY_BRACKET_RIGHT, current);
-        case '[': return token_from_file_unit(TOKEN_SQUARE_BRACKET_LEFT, current);
-        case ']': return token_from_file_unit(TOKEN_SQUARE_BRACKET_RIGHT, current);
-        case ':': return token_from_file_unit(TOKEN_COLON, current);
-        case ',': return token_from_file_unit(TOKEN_COMMA, current);
+        case ';': return token_from_unit(TOKEN_SEMICOLON, current);
+        case '(': return token_from_unit(TOKEN_ROUND_BRACKET_LEFT, current);
+        case ')': return token_from_unit(TOKEN_ROUND_BRACKET_RIGHT, current);
+        case '{': return token_from_unit(TOKEN_CURLY_BRACKET_LEFT, current);
+        case '}': return token_from_unit(TOKEN_CURLY_BRACKET_RIGHT, current);
+        case '[': return token_from_unit(TOKEN_SQUARE_BRACKET_LEFT, current);
+        case ']': return token_from_unit(TOKEN_SQUARE_BRACKET_RIGHT, current);
+        case ':': return token_from_unit(TOKEN_COLON, current);
+        case ',': return token_from_unit(TOKEN_COMMA, current);
 
         case '?':
-        case '~': return token_from_file_unit(TOKEN_OPERATOR, current);
+        case '~': return token_from_unit(TOKEN_OPERATOR, current);
 
         case '*':
         case '%':
@@ -565,12 +565,12 @@ token_t *read_token(tokenizer_t *tokenizer) {
             IF_FOLLOWED_BY('=', TOKEN_OPERATOR_ASSIGN, "/")
 
             if (next.unit == '/') {
-                tokenizer_chars_skip(tokenizer, 1);
+                tokenizer_units_skip(tokenizer, 1);
                 return read_comment_line(tokenizer);
             }
 
             if (next.unit == '*') {
-                tokenizer_chars_skip(tokenizer, 1);
+                tokenizer_units_skip(tokenizer, 1);
                 return read_comment_block(tokenizer);
             }
 
@@ -621,10 +621,10 @@ token_t *read_token(tokenizer_t *tokenizer) {
             READ_NEXT
 
             if (next.unit == '<') {
-                next = tokenizer_shift(tokenizer);
+                next = tokenizer_units_shift(tokenizer);
 
                 if (next.unit == '=') {
-                    return token_from_literal(TOKEN_OPERATOR_ASSIGN, "<<=", UNPACK_FILE_UNIT(next));
+                    return token_from_literal(TOKEN_OPERATOR_ASSIGN, "<<=", UNPACK_UNIT(next));
                 }
 
                 DEFAULT(TOKEN_OPERATOR, "<<")
@@ -637,10 +637,10 @@ token_t *read_token(tokenizer_t *tokenizer) {
             READ_NEXT
 
             if (next.unit == '>') {
-                next = tokenizer_shift(tokenizer);
+                next = tokenizer_units_shift(tokenizer);
 
                 if (next.unit == '=') {
-                    return token_from_literal(TOKEN_OPERATOR_ASSIGN, ">>=", UNPACK_FILE_UNIT(next));
+                    return token_from_literal(TOKEN_OPERATOR_ASSIGN, ">>=", UNPACK_UNIT(next));
                 }
 
                 DEFAULT(TOKEN_OPERATOR, ">>")
@@ -651,21 +651,21 @@ token_t *read_token(tokenizer_t *tokenizer) {
         }
 
         case '\'': {
-            file_unit_t fu = tokenizer_shift(tokenizer);
+            file_unit_t fu = tokenizer_units_shift(tokenizer);
 
             if (fu.unit == EOF) {
                 fu.unit = '\0';
-                return token_from_file_unit(TOKEN_UNKNOWN, fu);
+                return token_from_unit(TOKEN_UNKNOWN, fu);
             }
 
-            file_unit_t closing = tokenizer_shift(tokenizer);
+            file_unit_t closing = tokenizer_units_shift(tokenizer);
 
             if (closing.unit != '\'') {
-                return token_from_file_unit(TOKEN_UNKNOWN, closing);
+                return token_from_unit(TOKEN_UNKNOWN, closing);
             }
 
-            tokenizer_chars_skip(tokenizer, 1);
-            return token_from_file_unit(TOKEN_CHAR, fu);
+            tokenizer_units_skip(tokenizer, 1);
+            return token_from_unit(TOKEN_CHAR, fu);
         }
         case '"': {
             return read_string(tokenizer);
@@ -704,4 +704,27 @@ token_t *read_token(tokenizer_t *tokenizer) {
             return ident;
         }
     }
+}
+
+
+
+token_t *tokenizer_next(tokenizer_t *tokenizer) {
+    if (token_queue_size(tokenizer->tokens) != 0) {
+        return token_queue_shift(tokenizer->tokens);
+    }
+
+    return read_token(tokenizer);
+}
+token_t *tokenizer_peek(tokenizer_t *tokenizer, size_t index) {
+    size_t size = token_queue_size(tokenizer->tokens);
+
+    if (index < size) {
+        return token_queue_get(tokenizer->tokens, index);
+    }
+
+    for (int i = 0; i <= index - size; ++i) {
+        token_queue_push(tokenizer->tokens, read_token(tokenizer));
+    }
+
+    return token_queue_get(tokenizer->tokens, index);
 }
