@@ -1,4 +1,4 @@
-#include "null-guards.h"
+#include "memory.h"
 
 
 
@@ -10,48 +10,37 @@
 typedef struct {                     \
     int length;                   \
     int max_length;               \
-    ITEM_TYPE* arr; \
+    ITEM_TYPE *arr; \
 } TYPE;\
 TYPE* TYPE##_create();    \
-void TYPE##_free(TYPE* arr); \
-int TYPE##_push(TYPE* arr, ITEM_TYPE item); \
+void TYPE##_free(TYPE **arr); \
+void TYPE##_push(TYPE *arr, ITEM_TYPE item); \
 
 #define DYN_ARRAY_FN(TYPE, ITEM_TYPE) \
 TYPE* TYPE##_create() {           \
-    TYPE* t = malloc(sizeof(TYPE)); \
-    NULL_CHECKN(t)                \
-                                  \
-    t->arr = malloc(sizeof(ITEM_TYPE) * DYN_ARRAY_INITIAL_LENGTH); \
-    if (t->arr == NULL) {         \
-        free(t);                  \
-        return NULL;              \
-    }                             \
-    \
+    TYPE* t = allocate(sizeof(TYPE)); \
+                                      \
+    t->arr = allocate(sizeof(ITEM_TYPE) * DYN_ARRAY_INITIAL_LENGTH); \
     t->length = 0;                \
     t->max_length = DYN_ARRAY_INITIAL_LENGTH;\
                                   \
     return t;\
 }                                 \
                                   \
-void TYPE##_free(TYPE* t) {       \
-    RELEASE(t->arr)                 \
-    RELEASE(t)                      \
+void TYPE##_free(TYPE **t) {       \
+    RELEASE((*t)->arr)                 \
+    RELEASE(*t)                      \
 }\
                                   \
-int TYPE##_push(TYPE* t, ITEM_TYPE item) {\
+void TYPE##_push(TYPE* t, ITEM_TYPE item) {\
     if (t->length == t->max_length) {\
         int new_length = t->max_length * 2;\
                                   \
-        ITEM_TYPE* ptr = realloc(t->arr, sizeof(ITEM_TYPE) * new_length); \
-        NULL_CHECKR(ptr, 0)       \
-                                  \
-        t->arr = ptr;             \
+        t->arr = reallocate(t->arr, sizeof(ITEM_TYPE) * new_length); \
         t->max_length = new_length;\
     }                             \
                                   \
     t->arr[t->length++] = item;   \
-                                  \
-    return 1;\
 }                                 \
 
 #define DYN_ARRAY_POP(TYPE, ITEM_TYPE, NULL_TYPE) \
@@ -63,10 +52,7 @@ ITEM_TYPE TYPE##_pop(TYPE* t) {  \
     if (t->length < t->max_length / 3) {      \
         int new_length = t->max_length / 2;\
                                   \
-        ITEM_TYPE* ptr = realloc(t->arr, sizeof(ITEM_TYPE) * new_length); \
-        NULL_CHECKR(ptr, NULL_TYPE)\
-                                  \
-        t->arr = ptr;             \
+        t->arr = reallocate(t->arr, sizeof(ITEM_TYPE) * new_length); \
         t->max_length = new_length;\
     }                                  \
     \

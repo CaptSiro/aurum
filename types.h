@@ -16,9 +16,13 @@ typedef unsigned int uint32;
 typedef unsigned long long uint64;
 
 void string_print(const string *str);
-string *string_malloc(const char *literal);
+string *string_allocate(const char *literal);
 bool string_equals(const string *a, const string *b);
 bool string_equals_lit(const string *a, const char *b);
 bool string_equals_litn(const string *a, const char *b, size_t b_len);
+
+
+
+typedef double value_t;
 
 #endif

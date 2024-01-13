@@ -5,11 +5,19 @@ set(CMAKE_C_STANDARD 11)
 
 add_executable(aurum
         main.c
-        queue.h
-        tokenizer.c
-        types.h
         array.h
-        null-guards.h
+        queue.h
+        types.h
         types.c
         tokenizer.c
-        tokenizer.h)
+        tokenizer.h
+        bytecode.c
+        bytecode.h
+        memory.c
+        memory.h
+        vm.c
+        vm.h
+        vm.c
+        vm.h
+        map.c
+        map.h)

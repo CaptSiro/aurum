@@ -15,15 +15,9 @@ char *keywords[] = {
 };
 
 token_t *token_create(const token_e type) {
-    token_t *token = malloc(sizeof(token_t));
-    NULL_CHECKN(token)
+    token_t *token = allocate(sizeof(token_t));
 
     token->literal = string_create();
-    if (token->literal == NULL) {
-        RELEASE(token)
-        return NULL;
-    }
-
     token->type = type;
     token->column = 0;
     token->line = 0;
@@ -137,9 +131,6 @@ void token_print(token_t *token) {
         case TOKEN_EOF:
             printf("TOKEN_EOF");
             break;
-        case TOKEN_COMMENT:
-            printf("TOKEN_COMMENT");
-            break;
     }
 
     printf(": '");
@@ -147,7 +138,7 @@ void token_print(token_t *token) {
     printf("' [%llu:%llu]\n", token->line, token->column);
 }
 void token_free(token_t **token) {
-    string_free((*token)->literal);
+    string_free(&(*token)->literal);
     RELEASE((*token))
 }
 string *token_steal_literal(token_t *token) {
@@ -159,22 +150,10 @@ string *token_steal_literal(token_t *token) {
 
 
 tokenizer_t *tokenizer_create(FILE *stream) {
-    tokenizer_t *tokenizer = malloc(sizeof(tokenizer_t));
-    NULL_CHECKN(tokenizer)
+    tokenizer_t *tokenizer = allocate(sizeof(tokenizer_t));
 
     tokenizer->tokens = token_queue_create(4);
-    if (tokenizer->tokens == NULL) {
-        RELEASE(tokenizer)
-        return NULL;
-    }
-
     tokenizer->units = unit_queue_create(2);
-    if (tokenizer->units == NULL) {
-        token_queue_free(tokenizer->tokens);
-        RELEASE(tokenizer)
-        return NULL;
-    }
-
     tokenizer->stream = stream;
     tokenizer->line = 0;
     tokenizer->column = 0;
@@ -282,15 +261,11 @@ void tokenizer_units_skip(tokenizer_t *tokenizer, const size_t new_index) {
 
 token_t *token_from_char(const token_e type, const char literal) {
     token_t *token = token_create(type);
-    NULL_CHECKN(token)
-
     string_push(token->literal, literal);
-
     return token;
 }
 token_t *token_from_unit(const token_e type, const file_unit_t unit) {
     token_t *token = token_create(type);
-    NULL_CHECKN(token)
 
     string_push(token->literal, (char) unit.unit);
     token->column = unit.column;
@@ -301,7 +276,6 @@ token_t *token_from_unit(const token_e type, const file_unit_t unit) {
 #define UNPACK_UNIT(UNIT) UNIT.line, UNIT.column
 token_t *token_from_literal(const token_e type, const char *literal, uint64 line, uint64 column) {
     token_t *token = token_create(type);
-    NULL_CHECKN(token)
 
     token->line = line;
     token->column = column;
@@ -341,7 +315,6 @@ bool match_seq(tokenizer_t *tokenizer, const char *seq) {
 
 token_t *read_string(tokenizer_t *tokenizer) {
     token_t *token = token_create(TOKEN_STRING);
-    NULL_CHECKN(token)
 
     file_unit_t current = tokenizer_units_shift(tokenizer);
     while (current.unit != EOF) {
@@ -396,7 +369,6 @@ token_t *read_string(tokenizer_t *tokenizer) {
 }
 token_t *read_number(tokenizer_t *tokenizer, file_unit_t first_digit) {
     token_t *number = token_from_unit(TOKEN_NUMBER, first_digit);
-    NULL_CHECKN(number)
 
     bool has_not_loaded_decimal_dot = true;
     while (true) {
@@ -433,7 +405,6 @@ token_t *read_ident(tokenizer_t *tokenizer, file_unit_t current) {
     }
 
     token_t *token = token_from_unit(TOKEN_IDENT, current);
-    NULL_CHECKN(token)
 
     while (true) {
         file_unit_t fu = tokenizer_units_load(tokenizer);
@@ -677,7 +648,6 @@ token_t *read_token(tokenizer_t *tokenizer) {
             }
 
             token_t *ident = read_ident(tokenizer, current);
-            NULL_CHECKN(ident)
 
             if (ident->type == TOKEN_UNKNOWN) {
                 return ident;

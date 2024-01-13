@@ -48,7 +48,6 @@ typedef enum {
     TOKEN_CHAR,
     TOKEN_STRING,
 
-    TOKEN_COMMENT,
     TOKEN_UNKNOWN,
     TOKEN_EOF,
 } token_e;

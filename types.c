@@ -8,9 +8,8 @@ void string_print(const string *str) {
         putchar(str->arr[i]);
     }
 }
-string *string_malloc(const char *literal) {
+string *string_allocate(const char *literal) {
     string *str = string_create();
-    NULL_CHECKN(str)
 
     for (int i = 0; literal[i] != '\0'; ++i) {
         string_push(str, literal[i]);
