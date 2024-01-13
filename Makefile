@@ -2,7 +2,7 @@ CC:=gcc
 CFLAGS+=-g
 
 TARGET=aurum
-SRC := types.c memory.c map.c tokenizer.c bytecode.c vm.c main.c
+SRC := types.c memory.c tokenizer.c bytecode.c vm.c main.c
 RELEASE_OBJS := $(SRC:%.c=release/%.o)
 
 release: $(RELEASE_OBJS)

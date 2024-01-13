@@ -1,5 +1,5 @@
-#include "null-guards.h"
 #include <stdlib.h>
+#include "memory.h"
 
 
 
@@ -28,12 +28,12 @@ size_t TYPE##_queue_size(TYPE##_queue_t *queue);   \
 
 #define DYN_QUEUE_FN(TYPE, ITEM, NULL_ITEM) \
 TYPE##_queue_t *TYPE##_queue_create(int capacity){ \
-    TYPE##_queue_t *queue = malloc(sizeof(TYPE##_queue_t));\
+    TYPE##_queue_t *queue = allocate(sizeof(TYPE##_queue_t));\
     if (queue == NULL) {\
         return NULL;\
     }                                       \
     \
-    queue->buffer = (ITEM *)malloc(sizeof(ITEM) * capacity);\
+    queue->buffer = (ITEM *)allocate(sizeof(ITEM) * capacity);\
     if (queue->buffer == NULL) {\
         return NULL;\
     }\
@@ -54,7 +54,7 @@ void TYPE##_queue_free(TYPE##_queue_t *queue) {     \
 void TYPE##_queue_push(TYPE##_queue_t *queue, ITEM item) { \
     if (queue->read == queue->write && queue->size > 0) { \
         int buffer_size = queue->buffer_size * 2; \
-        ITEM *temp = (ITEM *)malloc(sizeof(ITEM) * buffer_size); \
+        ITEM *temp = (ITEM *)allocate(sizeof(ITEM) * buffer_size); \
         if (temp == NULL) { \
             return; \
         } \
@@ -87,7 +87,7 @@ ITEM TYPE##_queue_shift(TYPE##_queue_t *queue) {   \
     \
     if (queue->size != 0 && queue->size < queue->buffer_size / 3) {\
         int buffer_size = queue->buffer_size / 2;          \
-        ITEM *temp = malloc((size_t)(sizeof(ITEM) * buffer_size)); \
+        ITEM *temp = allocate((size_t)(sizeof(ITEM) * buffer_size)); \
         if (temp == NULL) { \
             return item; \
         } \
