@@ -19,5 +19,7 @@ add_executable(aurum
         vm.h
         vm.c
         vm.h
-        map.c
-        map.h)
+        map.h
+        ast.c
+        ast.h
+        ast.h)

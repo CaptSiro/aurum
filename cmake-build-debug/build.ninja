@@ -85,8 +85,8 @@ build CMakeFiles/aurum.dir/vm.c.obj: C_COMPILER__aurum_unscanned_Debug C$:/progr
   OBJECT_DIR = CMakeFiles\aurum.dir
   OBJECT_FILE_DIR = CMakeFiles\aurum.dir
 
-build CMakeFiles/aurum.dir/map.c.obj: C_COMPILER__aurum_unscanned_Debug C$:/programming/c/aurum/map.c || cmake_object_order_depends_target_aurum
-  DEP_FILE = CMakeFiles\aurum.dir\map.c.obj.d
+build CMakeFiles/aurum.dir/ast.c.obj: C_COMPILER__aurum_unscanned_Debug C$:/programming/c/aurum/ast.c || cmake_object_order_depends_target_aurum
+  DEP_FILE = CMakeFiles\aurum.dir\ast.c.obj.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
   OBJECT_DIR = CMakeFiles\aurum.dir
   OBJECT_FILE_DIR = CMakeFiles\aurum.dir
@@ -99,7 +99,7 @@ build CMakeFiles/aurum.dir/map.c.obj: C_COMPILER__aurum_unscanned_Debug C$:/prog
 #############################################
 # Link the executable aurum.exe
 
-build aurum.exe: C_EXECUTABLE_LINKER__aurum_Debug CMakeFiles/aurum.dir/main.c.obj CMakeFiles/aurum.dir/types.c.obj CMakeFiles/aurum.dir/tokenizer.c.obj CMakeFiles/aurum.dir/bytecode.c.obj CMakeFiles/aurum.dir/memory.c.obj CMakeFiles/aurum.dir/vm.c.obj CMakeFiles/aurum.dir/map.c.obj
+build aurum.exe: C_EXECUTABLE_LINKER__aurum_Debug CMakeFiles/aurum.dir/main.c.obj CMakeFiles/aurum.dir/types.c.obj CMakeFiles/aurum.dir/tokenizer.c.obj CMakeFiles/aurum.dir/bytecode.c.obj CMakeFiles/aurum.dir/memory.c.obj CMakeFiles/aurum.dir/vm.c.obj CMakeFiles/aurum.dir/ast.c.obj
   FLAGS = -g
   LINK_LIBRARIES = -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32
   OBJECT_DIR = CMakeFiles\aurum.dir

@@ -11,14 +11,14 @@ typedef struct {                     \
     int length;                   \
     int max_length;               \
     ITEM_TYPE *arr; \
-} TYPE;\
-TYPE* TYPE##_create();    \
-void TYPE##_free(TYPE **arr); \
-void TYPE##_push(TYPE *arr, ITEM_TYPE item); \
+} TYPE##_t;\
+TYPE##_t *TYPE##_create();    \
+void TYPE##_free(TYPE##_t **arr); \
+void TYPE##_push(TYPE##_t *arr, ITEM_TYPE item); \
 
 #define DYN_ARRAY_FN(TYPE, ITEM_TYPE) \
-TYPE* TYPE##_create() {           \
-    TYPE* t = allocate(sizeof(TYPE)); \
+TYPE##_t *TYPE##_create() {           \
+    TYPE##_t *t = allocate(sizeof(TYPE##_t)); \
                                       \
     t->arr = allocate(sizeof(ITEM_TYPE) * DYN_ARRAY_INITIAL_LENGTH); \
     t->length = 0;                \
@@ -27,12 +27,12 @@ TYPE* TYPE##_create() {           \
     return t;\
 }                                 \
                                   \
-void TYPE##_free(TYPE **t) {       \
+void TYPE##_free(TYPE##_t **t) {       \
     RELEASE((*t)->arr)                 \
     RELEASE(*t)                      \
 }\
                                   \
-void TYPE##_push(TYPE* t, ITEM_TYPE item) {\
+void TYPE##_push(TYPE##_t *t, ITEM_TYPE item) {\
     if (t->length == t->max_length) {\
         int new_length = t->max_length * 2;\
                                   \
@@ -44,7 +44,7 @@ void TYPE##_push(TYPE* t, ITEM_TYPE item) {\
 }                                 \
 
 #define DYN_ARRAY_POP(TYPE, ITEM_TYPE, NULL_TYPE) \
-ITEM_TYPE TYPE##_pop(TYPE* t) {  \
+ITEM_TYPE TYPE##_pop(TYPE##_t *t) {  \
     if (t->length == 0) {         \
         return NULL_TYPE;\
     }                                         \
@@ -60,7 +60,7 @@ ITEM_TYPE TYPE##_pop(TYPE* t) {  \
 }\
 
 #define DYN_ARRAY_PRINT(TYPE, PRINTF) \
-void TYPE##_print(TYPE* t) {      \
+void TYPE##_print(TYPE##_t *t) {      \
     putchar('[');                  \
     if (t->length != 0) {         \
         printf(PRINTF, t->arr[0]);\

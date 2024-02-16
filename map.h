@@ -17,15 +17,15 @@ typedef struct {\
 \
 DYN_ARRAY(TYPE##_entry_array, TYPE##_entry_t)\
 typedef struct {\
-    TYPE##_entry_array *array;\
+    TYPE##_entry_array_t *array;\
     int(* equals)(const KEY, const KEY);\
 } TYPE##_t;\
 \
 TYPE##_t *TYPE##_create(int (* equals) (const KEY, const KEY));\
 void TYPE##_free(TYPE##_t **);\
 void TYPE##_set(TYPE##_t *, KEY, ITEM);\
-ITEM *TYPE##_get(TYPE##_t *, KEY);\
-void TYPE##_print(TYPE##_t *);\
+ITEM *TYPE##_get(TYPE##_t *, KEY);           \
+void TYPE##_foreach(TYPE##_t *map, void (* fn) (const KEY key, const ITEM item));\
 
 
 
@@ -38,7 +38,7 @@ TYPE##_t *TYPE##_create(int (* equals) (const KEY, const KEY)) {\
     map->equals = equals;\
 \
     return map;\
-}\
+}                                   \
                                     \
 void TYPE##_free(TYPE##_t **map) {\
     if (*map == NULL) {\
@@ -72,10 +72,19 @@ ITEM *TYPE##_get(TYPE##_t *map, KEY key) {\
 \
     return NULL;\
 }                                   \
+\
+void TYPE##_foreach(TYPE##_t *map, void (* fn) (const KEY key, const ITEM item)) { \
+    for (int i = 0; i < map->array->length; ++i) {              \
+        fn(map->array->arr[i].key, map->array->arr[i].value);                                \
+    }                                    \
+}\
 
 
+#define DYN_MAP_PRINT(TYPE) \
+void TYPE##_print(TYPE##_t *);\
 
-#define DYN_MAP_PRINT(TYPE, KEY_PRINTABLE, ITEM_PRINTABLE) \
+
+#define DYN_MAP_FN_PRINT(TYPE, KEY_PRINTABLE, ITEM_PRINTABLE) \
 void TYPE##_print(TYPE##_t *map) {\
     if (!(map && map->array && map->array->arr)) {\
         puts("{}\n");\

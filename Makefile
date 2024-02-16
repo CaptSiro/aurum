@@ -2,11 +2,10 @@ CC:=gcc
 CFLAGS+=-g
 
 TARGET=aurum
-SRC := types.c memory.c tokenizer.c bytecode.c vm.c main.c
+SRC := types.c memory.c tokenizer.c ast.c main.c
 RELEASE_OBJS := $(SRC:%.c=release/%.o)
 
 release: $(RELEASE_OBJS)
-
 $(RELEASE_OBJS): release/%.o: %.c
 	@$(CC) $(CFLAGS) -c $< -o $@
 
@@ -20,3 +19,6 @@ run: $(INPUT)
 mleak: $(INPUT)
 	@make release --no-print-directory
 	valgrind --leak-check=full --show-leak-kinds=all "./release/$(TARGET)" $(INPUT)
+
+clean: $(RELEASE_OBJS)
+	rm -f ./release/*.o

@@ -59,14 +59,14 @@ typedef struct {
 
 typedef struct {
     token_e type;
-    string *literal;
+    string_t *literal;
     uint64 line;
     uint64 column;
 } token_t;
 
 void token_print(token_t *token);
 void token_free(token_t **token);
-string *token_steal_literal(token_t *token);
+string_t *token_steal_literal(token_t *token);
 
 
 
@@ -88,5 +88,6 @@ token_t *read_token(tokenizer_t *tokenizer);
 
 token_t *tokenizer_next(tokenizer_t *tokenizer);
 token_t *tokenizer_peek(tokenizer_t *tokenizer, size_t index);
+void tokenizer_skip(tokenizer_t *tokenizer, size_t count);
 
 #endif

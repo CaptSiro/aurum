@@ -138,11 +138,18 @@ void token_print(token_t *token) {
     printf("' [%llu:%llu]\n", token->line, token->column);
 }
 void token_free(token_t **token) {
-    string_free(&(*token)->literal);
+    if (*token == NULL) {
+        return;
+    }
+
+    if ((*token)->literal != NULL) {
+        string_free(&(*token)->literal);
+    }
+
     RELEASE((*token))
 }
-string *token_steal_literal(token_t *token) {
-    string *temp = token->literal;
+string_t *token_steal_literal(token_t *token) {
+    string_t *temp = token->literal;
     token->literal = NULL;
     return temp;
 }
@@ -697,4 +704,17 @@ token_t *tokenizer_peek(tokenizer_t *tokenizer, size_t index) {
     }
 
     return token_queue_get(tokenizer->tokens, index);
+}
+void tokenizer_skip(tokenizer_t *tokenizer, size_t count) {
+    while (count != 0) {
+        token_t *temp;
+        if (tokenizer->tokens->size != 0) {
+            temp = token_queue_shift(tokenizer->tokens);
+        } else {
+            temp = read_token(tokenizer);
+        }
+        token_free(&temp);
+
+        count--;
+    }
 }
