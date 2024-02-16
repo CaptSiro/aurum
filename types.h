@@ -15,6 +15,11 @@
 
 
 
+#define EC_TODO 1
+#define EC_UNEXPECTED_TOKEN 2
+
+
+
 DYN_ARRAY(string, char)
 
 
@@ -23,6 +28,14 @@ typedef unsigned char uint8;
 typedef unsigned short uint16;
 typedef unsigned int uint32;
 typedef unsigned long long uint64;
+
+
+
+#define TODO(WHAT) \
+fprintf(stderr, "TODO: %s [%s:%d]\n", WHAT, __FUNCTION__, __LINE__); \
+exit(EC_TODO);
+
+
 
 void string_print(const string_t *str);
 string_t *string_allocate(const char *literal);

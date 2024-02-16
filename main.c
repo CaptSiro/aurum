@@ -109,8 +109,7 @@ int main(int argc, char *argv[]) {
     FILE *stream = get_stream(argc, argv);
     tokenizer_t *tokenizer = tokenizer_create(stream);
 
-    bool is_err;
-    ast_t *ast = ast_parse(tokenizer, &is_err);
+    ast_t *ast = ast_parse(tokenizer);
     ast_print(ast, 0);
 
     ast_free(&ast);

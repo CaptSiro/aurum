@@ -16,6 +16,7 @@ typedef enum {
     AST_EXPR,
     AST_UOP,
     AST_BOP,
+    AST_REF,
     AST_FN_CALL,
     AST_LITERAL_NUMBER,
 } ast_e;
@@ -61,13 +62,15 @@ struct ast_t {
             string_t *name;
         } fn_call;
 
+        string_t *ref;
+
         double number;
     };
 };
 
 
 void ast_free(ast_t **node);
-ast_t *ast_parse(tokenizer_t *tokenizer, bool *is_err);
+ast_t *ast_parse(tokenizer_t *tokenizer);
 void ast_print(ast_t *ast, size_t level);
 
 

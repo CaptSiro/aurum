@@ -13,6 +13,7 @@ const char *ast_literals[] = {
     "EXPRESSION",
     "UNARY_OPERATION",
     "BINARY_OPERATION",
+    "REFERENCE",
     "FUNCTION_CALL",
     "NUMBER",
 };
@@ -59,7 +60,7 @@ ast_t *ast_create_bop(token_t *token) {
     if (op == BOP_COUNT) {
         fprintf(stderr, "Unknown operator.\n");
         token_print(token);
-        exit(2);
+        exit(EC_UNEXPECTED_TOKEN);
     }
 
     ast_t *node = ast_create(AST_BOP);
@@ -81,7 +82,7 @@ ast_t *ast_create_uop(token_t *token) {
     if (op == UOP_COUNT) {
         fprintf(stderr, "Unknown operator.\n");
         token_print(token);
-        exit(2);
+        exit(EC_UNEXPECTED_TOKEN);
     }
 
     ast_t *node = ast_create(AST_UOP);
@@ -120,6 +121,9 @@ void ast_free(ast_t **node) {
                 ast_free(&n->fn_call.params->arr[i]);
             }
             ast_array_free(&n->fn_call.params);
+            break;
+        case AST_REF:
+            string_free(&n->ref);
             break;
         case AST_LITERAL_NUMBER:
             break;
@@ -163,7 +167,34 @@ void pe_append_branch(ast_t **current, ast_t **unary, ast_t *node) {
 
     *unary = NULL;
 }
-ast_t *parse_expression(tokenizer_t *tokenizer) {
+ast_t *pe_handle_ident(tokenizer_t *tokenizer, token_t *ident) {
+    token_t *after = tokenizer_peek(tokenizer, 0);
+
+    switch (after->type) {
+        case TOKEN_DOT: {
+            TODO("Handle dot function call.")
+        }
+        // TODO add token access '::'
+//        case TOKEN_ACCESS: {
+//
+//        }
+        case TOKEN_ROUND_BRACKET_LEFT: {
+            TODO("Handle normal function call.")
+        }
+        case TOKEN_OPERATOR: {
+            ast_t *ref = ast_create(AST_REF);
+            ref->ref = token_steal_literal(ident);
+            return ref;
+        }
+        default: {
+            token_print(tokenizer_next(tokenizer));
+            token_print(tokenizer_next(tokenizer));
+            fprintf(stderr, "Unexpected token after identifier.\n");
+            exit(EC_UNEXPECTED_TOKEN);
+        }
+    }
+}
+ast_t *parse_expression(tokenizer_t *tokenizer, const token_e *stop_token) {
     ast_t *root = ast_create(AST_EXPR);
     root->expr = NULL;
 
@@ -175,22 +206,28 @@ ast_t *parse_expression(tokenizer_t *tokenizer) {
         token_free(&token);
         token = tokenizer_next(tokenizer);
 
+        if (stop_token != NULL && token->type == *stop_token) {
+            root->expr = current;
+        }
+
         switch (token->type) {
             case TOKEN_SEMICOLON:
             case TOKEN_EOF: {
-                if (unary != NULL) {
-                    ast_free(&unary);
-                }
                 root->expr = current;
-                token_free(&token);
-                return root;
+                break;
             }
 
             case TOKEN_NUMBER: {
-                ast_t *literal = ast_create(AST_LITERAL_NUMBER);
+                ast_t *number = ast_create(AST_LITERAL_NUMBER);
                 STRING_TO_CSTR(token->literal, buf);
-                literal->number = strtod(buf, NULL);
-                pe_append_branch(&current, &unary, literal);
+                number->number = strtod(buf, NULL);
+                pe_append_branch(&current, &unary, number);
+                break;
+            }
+
+            case TOKEN_IDENT: {
+                ast_t *resolved = pe_handle_ident(tokenizer, token);
+                pe_append_branch(&current, &unary, resolved);
                 break;
             }
 
@@ -228,15 +265,27 @@ ast_t *parse_expression(tokenizer_t *tokenizer) {
             }
 
             default: {
-                fprintf(stderr, "Unexpected token.\n");
+                fprintf(stderr, "Unexpected token for expression.\n");
                 token_print(token);
-                exit(2);
+                exit(EC_UNEXPECTED_TOKEN);
             }
         }
+
+        if (root->expr != NULL) {
+            token_free(&token);
+
+            if (unary != NULL) {
+                ast_free(&unary);
+            }
+
+            break;
+        }
     }
+
+    return root;
 }
 
-ast_t *ast_parse(tokenizer_t *tokenizer, bool *is_err) {
+ast_t *ast_parse(tokenizer_t *tokenizer) {
     ast_t *root = ast_create(AST_COMPOUND_STMT);
     root->compound_stmt = ast_array_create();
 
@@ -247,16 +296,15 @@ ast_t *ast_parse(tokenizer_t *tokenizer, bool *is_err) {
         switch (token->type) {
             case TOKEN_OPERATOR:
             case TOKEN_NUMBER: {
-                ast_array_push(root->compound_stmt, parse_expression(tokenizer));
+                ast_array_push(root->compound_stmt, parse_expression(tokenizer, NULL));
                 break;
             }
             case TOKEN_EOF: {
                 goto end;
             }
             default: {
-                fprintf(stderr, "TODO: Handle token\n");
                 token_print(token);
-                exit(1);
+                TODO("Handle token.")
             }
         }
     }
@@ -306,6 +354,12 @@ void ast_print(ast_t *ast, size_t level) {
                 ast_literals[ast->type]);
 
             ast_print(ast->expr, level + 1);
+            break;
+        case AST_REF:
+            printf(COLOR_YELLOW "%s" COLOR_RESET COLOR_CYAN " '",
+                ast_literals[ast->type]);
+            string_print(ast->ref);
+            printf("'\n" COLOR_RESET);
             break;
         case AST_FN_CALL:
             break;
